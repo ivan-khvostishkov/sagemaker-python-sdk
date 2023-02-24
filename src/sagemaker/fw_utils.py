@@ -13,6 +13,7 @@
 """Utility methods used by framework classes"""
 from __future__ import absolute_import
 
+import json
 import logging
 import os
 import re
@@ -55,6 +56,7 @@ PARAMETER_SERVER_MULTI_GPU_WARNING = (
 
 DEBUGGER_UNSUPPORTED_REGIONS = (
     "us-iso-east-1",
+    "us-isob-east-1",
     "ap-southeast-3",
     "ap-southeast-4",
     "eu-south-2",
@@ -65,6 +67,7 @@ DEBUGGER_UNSUPPORTED_REGIONS = (
 )
 PROFILER_UNSUPPORTED_REGIONS = (
     "us-iso-east-1",
+    "us-isob-east-1",
     "ap-southeast-3",
     "ap-southeast-4",
     "eu-south-2",
@@ -79,6 +82,7 @@ SM_DATAPARALLEL_SUPPORTED_INSTANCE_TYPES = (
     "ml.p3.16xlarge",
     "ml.p3dn.24xlarge",
     "ml.p4d.24xlarge",
+    "ml.p4de.24xlarge",
     "local_gpu",
 )
 SM_DATAPARALLEL_SUPPORTED_FRAMEWORK_VERSIONS = {
@@ -102,8 +106,11 @@ SM_DATAPARALLEL_SUPPORTED_FRAMEWORK_VERSIONS = {
         "2.8.0",
         "2.9",
         "2.9.1",
+        "2.9.2",
         "2.10",
-        "2.10.0",
+        "2.10.1",
+        "2.11",
+        "2.11.0",
     ],
     "pytorch": [
         "1.6",
@@ -124,6 +131,7 @@ SM_DATAPARALLEL_SUPPORTED_FRAMEWORK_VERSIONS = {
         "1.12",
         "1.12.0",
         "1.12.1",
+        "1.13.1",
     ],
 }
 
@@ -136,6 +144,7 @@ PYTORCHDDP_SUPPORTED_FRAMEWORK_VERSIONS = [
     "1.12",
     "1.12.0",
     "1.12.1",
+    "1.13.1",
 ]
 
 
@@ -234,6 +243,41 @@ def validate_source_code_input_against_pipeline_variables(
         )
 
 
+def parse_mp_parameters(params):
+    """Parse the model parallelism parameters provided by the user.
+
+    Args:
+        params: a string representing path to an existing config, or
+                a config dict.
+
+    Returns:
+        parsed: a dict of parsed config.
+
+    Raises:
+        ValueError: if params is not a string or a dict, or
+                    the config file cannot be parsed as json.
+    """
+    parsed = None
+    if isinstance(params, dict):
+        parsed = params
+    elif os.path.exists(params):
+        try:
+            with open(params, "r") as fp:
+                parsed = json.load(fp)
+        except json.decoder.JSONDecodeError:
+            pass
+    else:
+        raise ValueError(
+            f"Expected a string path to an existing modelparallel config, or a dictionary. "
+            f"Received: {params}."
+        )
+
+    if parsed is None:
+        raise ValueError(f"Cannot parse {params} as a json file.")
+
+    return parsed
+
+
 def get_mp_parameters(distribution):
     """Get the model parallelism parameters provided by the user.
 
@@ -250,6 +294,7 @@ def get_mp_parameters(distribution):
         mp_dict = {}
     if mp_dict.get("enabled", False) is True:
         params = mp_dict.get("parameters", {})
+        params = parse_mp_parameters(params)
         validate_mp_config(params)
         return params
     return None
@@ -381,7 +426,20 @@ def tar_and_upload_dir(
     script_name = script if directory else os.path.basename(script)
     dependencies = dependencies or []
     key = "%s/sourcedir.tar.gz" % s3_key_prefix
-    tmp = tempfile.mkdtemp()
+    if (
+        settings is not None
+        and settings.local_download_dir is not None
+        and not (
+            os.path.exists(settings.local_download_dir)
+            and os.path.isdir(settings.local_download_dir)
+        )
+    ):
+        raise ValueError(
+            "Inputted directory for storing newly generated temporary directory does "
+            f"not exist: '{settings.local_download_dir}'"
+        )
+    local_download_dir = None if settings is None else settings.local_download_dir
+    tmp = tempfile.mkdtemp(dir=local_download_dir)
     encrypt_artifact = True if settings is None else settings.encrypt_repacked_artifacts
 
     try:
@@ -456,7 +514,7 @@ def framework_name_from_image(image_uri):
     # We must support both the legacy and current image name format.
     name_pattern = re.compile(
         r"""^(?:sagemaker(?:-rl)?-)?
-        (tensorflow|mxnet|chainer|pytorch|scikit-learn|xgboost
+        (tensorflow|mxnet|chainer|pytorch|pytorch-trcomp|scikit-learn|xgboost
         |huggingface-tensorflow|huggingface-pytorch
         |huggingface-tensorflow-trcomp|huggingface-pytorch-trcomp)(?:-)?
         (scriptmode|training)?

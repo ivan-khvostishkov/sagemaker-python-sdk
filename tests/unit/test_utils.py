@@ -25,10 +25,12 @@ import json
 from boto3 import exceptions
 import botocore
 import pytest
-from mock import call, patch, Mock, MagicMock
+from mock import call, patch, Mock, MagicMock, PropertyMock
 
 import sagemaker
+from sagemaker.experiments._run_context import _RunContext
 from sagemaker.session_settings import SessionSettings
+from sagemaker.utils import retry_with_backoff, check_and_get_run_experiment_config
 from tests.unit.sagemaker.workflow.helpers import CustomStep
 from sagemaker.workflow.parameters import ParameterString, ParameterInteger
 
@@ -556,7 +558,7 @@ def test_repack_model_from_file_to_file(tmp):
     model_tar_path = os.path.join(tmp, "model.tar.gz")
     sagemaker.utils.create_tar_file([os.path.join(tmp, "model")], model_tar_path)
 
-    sagemaker_session = MagicMock()
+    sagemaker_session = MagicMock(settings=SessionSettings())
 
     file_mode_path = "file://%s" % model_tar_path
     destination_path = "file://%s" % os.path.join(tmp, "repacked-model.tar.gz")
@@ -606,7 +608,7 @@ def test_repack_model_from_file_to_folder(tmp):
         [],
         file_mode_path,
         "file://%s/repacked-model.tar.gz" % tmp,
-        MagicMock(),
+        MagicMock(settings=SessionSettings()),
     )
 
     assert list_tar_files("file://%s/repacked-model.tar.gz" % tmp, tmp) == {
@@ -677,7 +679,7 @@ def test_repack_model_with_same_inference_file_name(tmp, fake_s3):
 class FakeS3(object):
     def __init__(self, tmp):
         self.tmp = tmp
-        self.sagemaker_session = MagicMock()
+        self.sagemaker_session = MagicMock(settings=SessionSettings())
         self.location_map = {}
         self.current_bucket = None
         self.object_mock = MagicMock()
@@ -755,6 +757,10 @@ def test_sts_regional_endpoint():
     assert endpoint == "https://sts.us-iso-east-1.c2s.ic.gov"
     assert botocore.utils.is_valid_endpoint_url(endpoint)
 
+    endpoint = sagemaker.utils.sts_regional_endpoint("us-isob-east-1")
+    assert endpoint == "https://sts.us-isob-east-1.sc2s.sgov.gov"
+    assert botocore.utils.is_valid_endpoint_url(endpoint)
+
 
 def test_partition_by_region():
     assert sagemaker.utils._aws_partition("us-west-2") == "aws"
@@ -789,9 +795,90 @@ def test_to_string():
     }
 
 
-def test_start_waiting(capfd):
+@patch("time.sleep", return_value=None)
+def test_start_waiting(patched_sleep, capfd):
     waiting_time = 1
     sagemaker.utils._start_waiting(waiting_time)
     out, _ = capfd.readouterr()
 
     assert "." * sagemaker.utils.WAITING_DOT_NUMBER in out
+
+
+@patch("time.sleep", return_value=None)
+def test_retry_with_backoff(patched_sleep):
+    callable_func = Mock()
+
+    # Invalid input
+    with pytest.raises(ValueError) as value_err:
+        retry_with_backoff(callable_func, 0)
+    assert "The num_attempts must be >= 1" in str(value_err)
+    callable_func.assert_not_called()
+
+    # All retries fail
+    run_err_msg = "Test Retry Error"
+    callable_func.side_effect = RuntimeError(run_err_msg)
+    with pytest.raises(RuntimeError) as run_err:
+        retry_with_backoff(callable_func, 2)
+    assert run_err_msg in str(run_err)
+
+    # One retry passes
+    func_return_val = "Test Return"
+    callable_func.side_effect = [RuntimeError(run_err_msg), func_return_val]
+    assert retry_with_backoff(callable_func, 2) == func_return_val
+
+    # when retry on specific error, fail for other error on 1st try
+    func_return_val = "Test Return"
+    response = {"Error": {"Code": "ValidationException", "Message": "Could not find entity."}}
+    error = botocore.exceptions.ClientError(error_response=response, operation_name="foo")
+    callable_func.side_effect = [error, func_return_val]
+    with pytest.raises(botocore.exceptions.ClientError) as run_err:
+        retry_with_backoff(callable_func, 2, botocore_client_error_code="AccessDeniedException")
+    assert "ValidationException" in str(run_err)
+
+    # when retry on specific error, One retry passes
+    func_return_val = "Test Return"
+    response = {"Error": {"Code": "AccessDeniedException", "Message": "Access denied."}}
+    error = botocore.exceptions.ClientError(error_response=response, operation_name="foo")
+    callable_func.side_effect = [error, func_return_val]
+    assert (
+        retry_with_backoff(callable_func, 2, botocore_client_error_code="AccessDeniedException")
+        == func_return_val
+    )
+
+    # No retry
+    callable_func.side_effect = None
+    callable_func.return_value = func_return_val
+    assert retry_with_backoff(callable_func, 2) == func_return_val
+
+
+def test_check_and_get_run_experiment_config():
+    supplied_exp_cfg = {"ExperimentName": "my-supplied-exp-name", "RunName": "my-supplied-run-name"}
+    run_exp_cfg = {"ExperimentName": "my-run-exp-name", "RunName": "my-run-run-name"}
+
+    # No user supplied exp config and no current Run
+    assert not _RunContext.get_current_run()
+    exp_cfg1 = check_and_get_run_experiment_config(None)
+    assert exp_cfg1 is None
+
+    # With user supplied exp config and no current Run
+    assert not _RunContext.get_current_run()
+    exp_cfg2 = check_and_get_run_experiment_config(supplied_exp_cfg)
+    assert exp_cfg2 == supplied_exp_cfg
+
+    run = Mock()
+    type(run).experiment_config = PropertyMock(return_value=run_exp_cfg)
+    _RunContext.add_run_object(run)
+
+    try:
+        # No user supplied exp config and with current Run
+        assert _RunContext.get_current_run().experiment_config == run_exp_cfg
+        exp_cfg3 = check_and_get_run_experiment_config(None)
+        assert exp_cfg3 == run_exp_cfg
+
+        # With user supplied exp config and current Run
+        assert _RunContext.get_current_run().experiment_config == run_exp_cfg
+        exp_cfg4 = check_and_get_run_experiment_config(supplied_exp_cfg)
+        assert exp_cfg4 == supplied_exp_cfg
+    finally:
+        # Clean up the global static variable in case it affects other tests
+        _RunContext.drop_current_run()

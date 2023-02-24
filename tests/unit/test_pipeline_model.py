@@ -18,6 +18,7 @@ from mock import Mock, patch
 from sagemaker.model import FrameworkModel
 from sagemaker.pipeline import PipelineModel
 from sagemaker.predictor import Predictor
+from sagemaker.session_settings import SessionSettings
 from sagemaker.sparkml import SparkMLModel
 
 ENTRY_POINT = "blah.py"
@@ -65,6 +66,7 @@ def sagemaker_session():
         local_mode=False,
         s3_client=None,
         s3_resource=None,
+        settings=SessionSettings(),
     )
     sms.default_bucket = Mock(name="default_bucket", return_value=BUCKET_NAME)
     return sms
@@ -97,7 +99,7 @@ def test_prepare_container_def(tfo, time, sagemaker_session):
         {
             "Environment": {"SAGEMAKER_DEFAULT_INVOCATIONS_ACCEPT": "text/csv"},
             "Image": "246618743249.dkr.ecr.us-west-2.amazonaws.com"
-            + "/sagemaker-sparkml-serving:2.4",
+            + "/sagemaker-sparkml-serving:3.3",
             "ModelDataUrl": "s3://bucket/model_2.tar.gz",
         },
     ]
@@ -338,7 +340,7 @@ def test_network_isolation(tfo, time, sagemaker_session):
                 "ModelDataUrl": "s3://bucket/model_1.tar.gz",
             },
             {
-                "Image": "246618743249.dkr.ecr.us-west-2.amazonaws.com/sagemaker-sparkml-serving:2.4",
+                "Image": "246618743249.dkr.ecr.us-west-2.amazonaws.com/sagemaker-sparkml-serving:3.3",
                 "Environment": {},
                 "ModelDataUrl": "s3://bucket/model_2.tar.gz",
             },

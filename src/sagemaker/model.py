@@ -48,6 +48,7 @@ from sagemaker.predictor_async import AsyncPredictor
 from sagemaker.workflow import is_pipeline_variable
 from sagemaker.workflow.entities import PipelineVariable
 from sagemaker.workflow.pipeline_context import runnable_by_pipeline, PipelineSession
+from sagemaker.inference_recommender.inference_recommender_mixin import InferenceRecommenderMixin
 
 LOGGER = logging.getLogger("sagemaker")
 
@@ -83,7 +84,7 @@ SAGEMAKER_REGION_PARAM_NAME = "sagemaker_region"
 SAGEMAKER_OUTPUT_LOCATION = "sagemaker_s3_output"
 
 
-class Model(ModelBase):
+class Model(ModelBase, InferenceRecommenderMixin):
     """A SageMaker ``Model`` that can be deployed to an ``Endpoint``."""
 
     def __init__(
@@ -279,6 +280,8 @@ class Model(ModelBase):
         self._is_compiled_model = False
         self._compilation_job_name = None
         self._is_edge_packaged_model = False
+        self.inference_recommender_job_results = None
+        self.inference_recommendations = None
         self._enable_network_isolation = enable_network_isolation
         self.model_kms_key = model_kms_key
         self.image_config = image_config
@@ -789,7 +792,7 @@ api/latest/reference/services/sagemaker.html#SageMaker.Client.add_tags>`_
                 }
                 if target_instance_type in NEO_IOC_TARGET_DEVICES:
                     return framework in multi_version_frameworks_support_mapping["neo_ioc_targets"]
-                if target_instance_type == "ml_inf":
+                if target_instance_type == "ml_inf1":
                     return framework in multi_version_frameworks_support_mapping["inferentia"]
             return False
 
@@ -1032,6 +1035,7 @@ api/latest/reference/services/sagemaker.html#SageMaker.Client.add_tags>`_
         volume_size=None,
         model_data_download_timeout=None,
         container_startup_health_check_timeout=None,
+        inference_recommendation_id=None,
         **kwargs,
     ):
         """Deploy this ``Model`` to an ``Endpoint`` and optionally return a ``Predictor``.
@@ -1050,11 +1054,13 @@ api/latest/reference/services/sagemaker.html#SageMaker.Client.add_tags>`_
         Args:
             initial_instance_count (int): The initial number of instances to run
                 in the ``Endpoint`` created from this ``Model``. If not using
-                serverless inference, then it need to be a number larger or equals
+                serverless inference or the model has not called ``right_size()``,
+                then it need to be a number larger or equals
                 to 1 (default: None)
             instance_type (str): The EC2 instance type to deploy this Model to.
                 For example, 'ml.p2.xlarge', or 'local' for local mode. If not using
-                serverless inference, then it is required to deploy a model.
+                serverless inference or the model has not called ``right_size()``,
+                then it is required to deploy a model.
                 (default: None)
             serializer (:class:`~sagemaker.serializers.BaseSerializer`): A
                 serializer object, used to encode data for an inference endpoint
@@ -1105,19 +1111,24 @@ api/latest/reference/services/sagemaker.html#SageMaker.Client.add_tags>`_
                 inference container to pass health check by SageMaker Hosting. For more information
                 about health check see:
                 https://docs.aws.amazon.com/sagemaker/latest/dg/your-algorithms-inference-code.html#your-algorithms-inference-algo-ping-requests
+            inference_recommendation_id (str): The recommendation id which specifies the
+                recommendation you picked from inference recommendation job results and
+                would like to deploy the model and endpoint with recommended parameters.
         Raises:
              ValueError: If arguments combination check failed in these circumstances:
                 - If no role is specified or
                 - If serverless inference config is not specified and instance type and instance
                     count are also not specified or
                 - If a wrong type of object is provided as serverless inference config or async
-                    inference config
+                    inference config or
+                - If inference recommendation id is specified along with incompatible parameters
         Returns:
             callable[string, sagemaker.session.Session] or None: Invocation of
                 ``self.predictor_cls`` on the created endpoint name, if ``self.predictor_cls``
                 is not None. Otherwise, return None.
         """
         removed_kwargs("update_endpoint", kwargs)
+
         self._init_sagemaker_session_if_does_not_exist(instance_type)
 
         tags = add_jumpstart_tags(
@@ -1126,6 +1137,20 @@ api/latest/reference/services/sagemaker.html#SageMaker.Client.add_tags>`_
 
         if self.role is None:
             raise ValueError("Role can not be null for deploying a model")
+
+        if (
+            inference_recommendation_id is not None
+            or self.inference_recommender_job_results is not None
+        ):
+            instance_type, initial_instance_count = self._update_params(
+                instance_type=instance_type,
+                initial_instance_count=initial_instance_count,
+                accelerator_type=accelerator_type,
+                async_inference_config=async_inference_config,
+                serverless_inference_config=serverless_inference_config,
+                inference_recommendation_id=inference_recommendation_id,
+                inference_recommender_job_results=self.inference_recommender_job_results,
+            )
 
         is_async = async_inference_config is not None
         if is_async and not isinstance(async_inference_config, AsyncInferenceConfig):
@@ -1602,6 +1627,9 @@ class ModelPackage(Model):
             model_package_name = self.model_package_arn
 
         container_def = {"ModelPackageName": model_package_name}
+
+        if self.env != {}:
+            container_def["Environment"] = self.env
 
         self._ensure_base_name_if_needed(model_package_name.split("/")[-1])
         self._set_model_name_if_needed()

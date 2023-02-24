@@ -282,7 +282,6 @@ ANALYSIS_CONFIG_SCHEMA_V1_0 = Schema(
                     "text/csv",
                     "application/jsonlines",
                     "image/jpeg",
-                    "image/jpg",
                     "image/png",
                     "application/x-npy",
                 ),
@@ -331,11 +330,11 @@ class DataConfig:
             s3_analysis_config_output_path (str): S3 prefix to store the analysis config output.
                 If this field is None, then the ``s3_output_path`` will be used
                 to store the ``analysis_config`` output.
-            label (str): Target attribute of the model required by bias metrics.
-                Specified as column name or index for CSV dataset or as JSONPath for JSONLines.
+            label (str): Target attribute of the model required by bias metrics. Specified as
+                column name or index for CSV dataset or as JMESPath expression for JSONLines.
                 *Required parameter* except for when the input dataset does not contain the label.
-            features (List[str]): JSONPath for locating the feature columns for bias metrics if the
-                dataset format is JSONLines.
+            features (List[str]): JMESPath expression to locate the feature columns for
+                bias metrics if the dataset format is JSONLines.
             dataset_type (str): Format of the dataset. Valid values are ``"text/csv"`` for CSV,
                 ``"application/jsonlines"`` for JSONLines, and
                 ``"application/x-parquet"`` for Parquet.
@@ -717,11 +716,11 @@ class ModelPredictedLabelConfig:
             ``label_headers=['cat','dog','fish']`` and infer the predicted label to be ``'fish'``.
 
         Args:
-            label (str or int): Index or JSONPath location in the model output for the prediction.
-                In case, this is a predicted label of the same type as the label in the dataset,
-                no further arguments need to be specified.
-            probability (str or int): Index or JSONPath location in the model output
-                for the predicted score(s).
+            label (str or int): Index or JMESPath expression to locate the prediction
+                in the model output. In case, this is a predicted label of the same type
+                as the label in the dataset, no further arguments need to be specified.
+            probability (str or int): Index or JMESPath expression to locate the predicted score(s)
+                in the model output.
             probability_threshold (float): An optional value for binary prediction tasks in which
                 the model returns a probability, to indicate the threshold to convert the
                 prediction to a boolean value. Default is ``0.5``.
@@ -1424,8 +1423,8 @@ class SageMakerClarifyProcessor(Processor):
         self,
         data_config: DataConfig,
         data_bias_config: BiasConfig,
-        model_config: ModelConfig,
-        model_predicted_label_config: ModelPredictedLabelConfig,
+        model_config: Optional[ModelConfig] = None,
+        model_predicted_label_config: Optional[ModelPredictedLabelConfig] = None,
         methods: Union[str, List[str]] = "all",
         wait: bool = True,
         logs: bool = True,
@@ -1445,7 +1444,8 @@ class SageMakerClarifyProcessor(Processor):
             data_config (:class:`~sagemaker.clarify.DataConfig`): Config of the input/output data.
             data_bias_config (:class:`~sagemaker.clarify.BiasConfig`): Config of sensitive groups.
             model_config (:class:`~sagemaker.clarify.ModelConfig`): Config of the model and its
-                endpoint to be created.
+                endpoint to be created. This is required unless``predicted_label_dataset_uri`` or
+                ``predicted_label`` is provided in ``data_config``.
             model_predicted_label_config (:class:`~sagemaker.clarify.ModelPredictedLabelConfig`):
                 Config of how to extract the predicted label from the model output.
             methods (str or list[str]): Selector of a subset of potential metrics:
@@ -1509,7 +1509,7 @@ class SageMakerClarifyProcessor(Processor):
         self,
         data_config: DataConfig,
         bias_config: BiasConfig,
-        model_config: ModelConfig,
+        model_config: Optional[ModelConfig] = None,
         model_predicted_label_config: Optional[ModelPredictedLabelConfig] = None,
         pre_training_methods: Union[str, List[str]] = "all",
         post_training_methods: Union[str, List[str]] = "all",
@@ -1530,7 +1530,8 @@ class SageMakerClarifyProcessor(Processor):
             data_config (:class:`~sagemaker.clarify.DataConfig`): Config of the input/output data.
             bias_config (:class:`~sagemaker.clarify.BiasConfig`): Config of sensitive groups.
             model_config (:class:`~sagemaker.clarify.ModelConfig`): Config of the model and its
-                endpoint to be created.
+                endpoint to be created. This is required unless``predicted_label_dataset_uri`` or
+                ``predicted_label`` is provided in ``data_config``.
             model_predicted_label_config (:class:`~sagemaker.clarify.ModelPredictedLabelConfig`):
                 Config of how to extract the predicted label from the model output.
             pre_training_methods (str or list[str]): Selector of a subset of potential metrics:
@@ -1646,9 +1647,9 @@ class SageMakerClarifyProcessor(Processor):
                 You can request multiple methods at once by passing in a list of
                 `~sagemaker.clarify.ExplainabilityConfig`.
             model_scores (int or str or :class:`~sagemaker.clarify.ModelPredictedLabelConfig`):
-                Index or JSONPath to locate the predicted scores in the model output. This is not
-                required if the model output is a single score. Alternatively, it can be an instance
-                of :class:`~sagemaker.clarify.SageMakerClarifyProcessor`
+                Index or JMESPath expression to locate the predicted scores in the model output.
+                This is not required if the model output is a single score. Alternatively,
+                it can be an instance of :class:`~sagemaker.clarify.SageMakerClarifyProcessor`
                 to provide more parameters like ``label_headers``.
             wait (bool): Whether the call should wait until the job completes (default: True).
             logs (bool): Whether to show the logs produced by the job.
@@ -1775,9 +1776,9 @@ class SageMakerClarifyProcessor(Processor):
                 str or
                 :class:`~sagemaker.clarify.ModelPredictedLabelConfig`
             ):
-                Index or JSONPath to locate the predicted scores in the model output. This is not
-                required if the model output is a single score. Alternatively, it can be an instance
-                of :class:`~sagemaker.clarify.SageMakerClarifyProcessor`
+                Index or JMESPath expression to locate the predicted scores in the model output.
+                This is not required if the model output is a single score. Alternatively,
+                it can be an instance of :class:`~sagemaker.clarify.SageMakerClarifyProcessor`
                 to provide more parameters like ``label_headers``.
             wait (bool): Whether the call should wait until the job completes (default: True).
             logs (bool): Whether to show the logs produced by the job.
@@ -1931,16 +1932,30 @@ class _AnalysisConfigGenerator:
     ):
         """Extends analysis config with predictor."""
         analysis_config = {**analysis_config}
-        analysis_config["predictor"] = model_config.get_predictor_config()
+        if isinstance(model_config, ModelConfig):
+            analysis_config["predictor"] = model_config.get_predictor_config()
+        else:
+            if "shap" in analysis_config["methods"] or "pdp" in analysis_config["methods"]:
+                raise ValueError(
+                    "model_config must be provided when explainability methods are selected."
+                )
+            if (
+                "predicted_label_dataset_uri" not in analysis_config
+                and "predicted_label" not in analysis_config
+            ):
+                raise ValueError(
+                    "model_config must be provided when `predicted_label_dataset_uri` or "
+                    "`predicted_label` are not provided in data_config."
+                )
         if isinstance(model_predicted_label_config, ModelPredictedLabelConfig):
             (
                 probability_threshold,
                 predictor_config,
             ) = model_predicted_label_config.get_predictor_config()
-            if predictor_config:
+            if predictor_config and "predictor" in analysis_config:
                 analysis_config["predictor"].update(predictor_config)
             _set(probability_threshold, "probability_threshold", analysis_config)
-        else:
+        elif "predictor" in analysis_config:
             _set(model_predicted_label_config, "label", analysis_config["predictor"])
         return analysis_config
 

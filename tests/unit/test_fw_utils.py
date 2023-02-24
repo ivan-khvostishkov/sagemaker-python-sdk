@@ -13,6 +13,7 @@
 from __future__ import absolute_import
 
 import inspect
+import json
 import os
 import tarfile
 from contextlib import contextmanager
@@ -42,7 +43,11 @@ def cd(path):
 def sagemaker_session():
     boto_mock = Mock(name="boto_session", region_name="us-west-2")
     session_mock = Mock(
-        name="sagemaker_session", boto_session=boto_mock, s3_client=None, s3_resource=None
+        name="sagemaker_session",
+        boto_session=boto_mock,
+        s3_client=None,
+        s3_resource=None,
+        settings=SessionSettings(),
     )
     session_mock.default_bucket = Mock(name="default_bucket", return_value="my-bucket")
     session_mock.expand_role = Mock(name="expand_role", return_value="my-role")
@@ -190,6 +195,43 @@ def test_validate_source_dir_file_not_in_dir():
     directory = "."
     with pytest.raises(ValueError):
         fw_utils.validate_source_dir(script, directory)
+
+
+def test_parse_mp_parameters_input_dict():
+    mp_parameters = {
+        "partitions": 1,
+        "tensor_parallel_degree": 2,
+        "microbatches": 1,
+        "optimize": "speed",
+        "pipeline": "interleaved",
+        "ddp": 1,
+        "auto_partition": False,
+        "default_partition": 0,
+    }
+    assert mp_parameters == fw_utils.parse_mp_parameters(mp_parameters)
+
+
+def test_parse_mp_parameters_input_str_json():
+    mp_parameters = {
+        "partitions": 1,
+        "tensor_parallel_degree": 2,
+        "microbatches": 1,
+        "optimize": "speed",
+        "pipeline": "interleaved",
+        "ddp": 1,
+        "auto_partition": False,
+        "default_partition": 0,
+    }
+    json_file_path = "./params.json"
+    with open(json_file_path, "x") as fp:
+        json.dump(mp_parameters, fp)
+    assert mp_parameters == fw_utils.parse_mp_parameters(json_file_path)
+    os.remove(json_file_path)
+
+
+def test_parse_mp_parameters_input_not_exit():
+    with pytest.raises(ValueError):
+        fw_utils.parse_mp_parameters(" !@#$%^&*()path probably in not there.!@#$%^&*()")
 
 
 def test_tar_and_upload_dir_not_s3(sagemaker_session):
@@ -579,6 +621,7 @@ def test_region_supports_debugger_feature_returns_true_for_supported_regions():
 
 def test_region_supports_debugger_feature_returns_false_for_unsupported_regions():
     assert fw_utils._region_supports_debugger("us-iso-east-1") is False
+    assert fw_utils._region_supports_debugger("us-isob-east-1") is False
     assert fw_utils._region_supports_debugger("ap-southeast-3") is False
     assert fw_utils._region_supports_debugger("ap-southeast-4") is False
     assert fw_utils._region_supports_debugger("eu-south-2") is False
@@ -845,10 +888,13 @@ def test_validate_smdataparallel_args_not_raises():
         ("ml.p3.16xlarge", "tensorflow", "2.7", "py38", smdataparallel_enabled),
         ("ml.p3.16xlarge", "tensorflow", "2.8.0", "py39", smdataparallel_enabled),
         ("ml.p3.16xlarge", "tensorflow", "2.8", "py39", smdataparallel_enabled),
+        ("ml.p3.16xlarge", "tensorflow", "2.9.2", "py39", smdataparallel_enabled),
         ("ml.p3.16xlarge", "tensorflow", "2.9.1", "py39", smdataparallel_enabled),
         ("ml.p3.16xlarge", "tensorflow", "2.9", "py39", smdataparallel_enabled),
-        ("ml.p3.16xlarge", "tensorflow", "2.10.0", "py39", smdataparallel_enabled),
+        ("ml.p3.16xlarge", "tensorflow", "2.10.1", "py39", smdataparallel_enabled),
         ("ml.p3.16xlarge", "tensorflow", "2.10", "py39", smdataparallel_enabled),
+        ("ml.p3.16xlarge", "tensorflow", "2.11.0", "py39", smdataparallel_enabled),
+        ("ml.p3.16xlarge", "tensorflow", "2.11", "py39", smdataparallel_enabled),
         ("ml.p3.16xlarge", "pytorch", "1.6.0", "py3", smdataparallel_enabled),
         ("ml.p3.16xlarge", "pytorch", "1.6", "py3", smdataparallel_enabled),
         ("ml.p3.16xlarge", "pytorch", "1.7.1", "py3", smdataparallel_enabled),
@@ -866,6 +912,7 @@ def test_validate_smdataparallel_args_not_raises():
         ("ml.p3.16xlarge", "pytorch", "1.12.0", "py38", smdataparallel_enabled),
         ("ml.p3.16xlarge", "pytorch", "1.12.1", "py38", smdataparallel_enabled),
         ("ml.p3.16xlarge", "pytorch", "1.12", "py38", smdataparallel_enabled),
+        ("ml.p3.16xlarge", "pytorch", "1.13.1", "py39", smdataparallel_enabled),
         ("ml.p3.16xlarge", "tensorflow", "2.4.1", "py3", smdataparallel_enabled_custom_mpi),
         ("ml.p3.16xlarge", "tensorflow", "2.4.1", "py37", smdataparallel_enabled_custom_mpi),
         ("ml.p3.16xlarge", "tensorflow", "2.4.3", "py3", smdataparallel_enabled_custom_mpi),
@@ -877,13 +924,16 @@ def test_validate_smdataparallel_args_not_raises():
         ("ml.p3.16xlarge", "tensorflow", "2.7.1", "py38", smdataparallel_enabled_custom_mpi),
         ("ml.p3.16xlarge", "tensorflow", "2.8.0", "py39", smdataparallel_enabled_custom_mpi),
         ("ml.p3.16xlarge", "tensorflow", "2.9.1", "py39", smdataparallel_enabled_custom_mpi),
-        ("ml.p3.16xlarge", "tensorflow", "2.10.0", "py39", smdataparallel_enabled_custom_mpi),
+        ("ml.p3.16xlarge", "tensorflow", "2.9.2", "py39", smdataparallel_enabled_custom_mpi),
+        ("ml.p3.16xlarge", "tensorflow", "2.10.1", "py39", smdataparallel_enabled_custom_mpi),
+        ("ml.p3.16xlarge", "tensorflow", "2.11.0", "py39", smdataparallel_enabled_custom_mpi),
         ("ml.p3.16xlarge", "pytorch", "1.8.0", "py3", smdataparallel_enabled_custom_mpi),
         ("ml.p3.16xlarge", "pytorch", "1.9.1", "py38", smdataparallel_enabled_custom_mpi),
         ("ml.p3.16xlarge", "pytorch", "1.10.2", "py38", smdataparallel_enabled_custom_mpi),
         ("ml.p3.16xlarge", "pytorch", "1.11.0", "py38", smdataparallel_enabled_custom_mpi),
         ("ml.p3.16xlarge", "pytorch", "1.12.0", "py38", smdataparallel_enabled_custom_mpi),
         ("ml.p3.16xlarge", "pytorch", "1.12.1", "py38", smdataparallel_enabled_custom_mpi),
+        ("ml.p3.16xlarge", "pytorch", "1.13.1", "py39", smdataparallel_enabled_custom_mpi),
     ]
     for instance_type, framework_name, framework_version, py_version, distribution in good_args:
         fw_utils._validate_smdataparallel_args(

@@ -24,6 +24,7 @@ from sagemaker import image_uris
 from sagemaker.huggingface import HuggingFace, TrainingCompilerConfig
 from sagemaker.huggingface.model import HuggingFaceModel
 from sagemaker.instance_group import InstanceGroup
+from sagemaker.session_settings import SessionSettings
 
 from tests.unit.sagemaker.training_compiler import EC2_GPU_INSTANCE_CLASSES
 
@@ -52,6 +53,7 @@ EXPERIMENT_CONFIG = {
     "ExperimentName": "exp",
     "TrialName": "trial",
     "TrialComponentDisplayName": "tc",
+    "RunName": "rn",
 }
 
 
@@ -71,6 +73,7 @@ def fixture_sagemaker_session():
         local_mode=False,
         s3_resource=None,
         s3_client=None,
+        settings=SessionSettings(),
     )
 
     describe = {"ModelArtifacts": {"S3ModelArtifacts": "s3://m/m.tar.gz"}}
@@ -144,14 +147,8 @@ def _create_train_job(
             "CollectionConfigurations": [],
             "S3OutputPath": "s3://{}/".format(BUCKET_NAME),
         },
-        "profiler_rule_configs": [
-            {
-                "RuleConfigurationName": "ProfilerReport-1510006209",
-                "RuleEvaluatorImage": "503895931360.dkr.ecr.us-east-1.amazonaws.com/sagemaker-debugger-rules:latest",
-                "RuleParameters": {"rule_to_invoke": "ProfilerReport"},
-            }
-        ],
         "profiler_config": {
+            "DisableProfiler": False,
             "S3OutputPath": "s3://{}/".format(BUCKET_NAME),
         },
     }

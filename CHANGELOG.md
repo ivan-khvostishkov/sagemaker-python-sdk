@@ -1,5 +1,269 @@
 # Changelog
 
+## v2.135.0 (2023-02-23)
+
+### Features
+
+ * Add DLC accounts for MEL Region
+ * allow use of short lived creds for local container
+
+### Bug Fixes and Other Changes
+
+ * update lambda function when function arn is provided
+
+## v2.134.1 (2023-02-22)
+
+### Bug Fixes and Other Changes
+
+ * local mode deletion of temp files on job end
+ * Cron expression resetting on update monitor
+ * added support to update arguments in create_monitoring_schedule
+
+## v2.134.0 (2023-02-22)
+
+### Features
+
+ * Add python 3.9 and spark 3.2 support for spark processor
+ * Adding support for Multi Worker Mirrored Strategy in TF estimator
+
+### Bug Fixes and Other Changes
+
+ * tag permission issue - remove describe before create
+
+## v2.133.0 (2023-02-18)
+
+### Features
+
+ * feature store with_feature_group functionality changes
+ * Adding support for SageMaker Training Compiler PyTorch 1.13
+ * support of the intelligent stopping in the tuner
+ * AutoGluon 0.6.2 image_uris update
+ * Support for flexible instance types in the HPO
+ * Add business details and hyper parameters fields and update test_model_card.py
+
+### Bug Fixes and Other Changes
+
+ * disable the tuner test
+ * Skip test_run_from_transform_job integ test to unblock python-sdk code pipeline
+ * Revert "feature: feature store with_feature_group functionality changes"
+ * advanced inference recommendation jobs parameters check
+ * make model_config optional when predicted labels are provided for bias detection
+
+## v2.132.0 (2023-02-07)
+
+### Features
+
+ * support cluster lifecycle management for Sagemaker EMR step
+ * Inference recommendation id deployment support
+
+## v2.131.1 (2023-02-03)
+
+### Bug Fixes and Other Changes
+
+ * test dub gpu integs with p3
+ * fix(experiments/run.py): Stop duplication of RUN_TC_TAG on Consecutive Experiment Runs
+ * Enable load_run without name args in Transform env
+ * Remove confusing log line emitted during feature group ingestion
+ * Enable Experiment integ test on beta clients
+ * Make test_processor_with_role_as_pipeline_parameter more concrete
+
+### Documentation Changes
+
+ * add security note for the estimator hyperparameter arg
+ * SageMaker distributed - model parallism library release note
+ * Add a deprecation note for DetailedProfileConfig
+
+## v2.131.0 (2023-01-31)
+
+### Features
+
+ * Display file diff on black-check
+ * Support for environment variables in the HPO
+ * Support role as PipelineParameter in Processor class
+ * Add TrainingImageConfig support for SageMaker training jobs
+
+### Bug Fixes and Other Changes
+
+ * use FeatureGroup's Session in nonconcurrency ingestion
+ * Update feature_group.py ingest() description
+ * Do not use print function. User logger instead
+ * Add batch_get_record and search API for FeatureStore
+ * hashing problem for framework processors with identical source dirs
+
+## v2.130.0 (2023-01-26)
+
+### Features
+
+ * Add PyTorch 1.13.1 to SDK
+ * Adding image_uri config for DJL containers
+ * Support specifying env-vars when creating model from model package
+ * local download dir for Model and Estimator classes
+
+### Bug Fixes and Other Changes
+
+ * increase creation time slack minutes
+ * Enable load_run auto pass in experiment config
+ * Add us-isob-east-1 accounts and configs
+ * Clean up Pipeline unit tests
+
+## v2.129.0 (2023-01-19)
+
+### Features
+
+ * add p2 deprecation for PT>=1.13
+ * TF2.11 Update to PySDK
+
+### Bug Fixes and Other Changes
+
+ * Improve Pipeline integ tests and fix resource leak
+ * Update TF version to 2.8.4
+
+## v2.128.0 (2023-01-10)
+
+### Features
+
+ * right_size() for inference recommender
+
+### Bug Fixes and Other Changes
+
+ * tf 2.9.3 release images
+ * Retry ValueError for airflow tests
+
+## v2.127.0 (2023-01-03)
+
+### Features
+
+ * tensorflow inference 2.10.1 release
+
+## v2.126.0 (2022-12-22)
+
+### Features
+
+ * AutoGluon 0.6.1 image_uris
+
+### Bug Fixes and Other Changes
+
+ * Fix broken link in doc
+ * Do not specify S3 path for disabled profiler
+
+### Documentation Changes
+
+ * fix the incorrect property reference
+
+## v2.125.0 (2022-12-19)
+
+### Features
+
+ * add RandomSeed to support reproducible HPO
+
+### Bug Fixes and Other Changes
+
+ * Correct SageMaker Clarify API docstrings by changing JSONPath to JMESPath
+
+## v2.124.0 (2022-12-16)
+
+### Features
+
+ * Doc update for TableFormatEnum
+ * Add p4de to smddp supported instance types
+ * Add disable_profiler field in config and propagate changes
+ * Added doc update for dataset builder
+
+### Bug Fixes and Other Changes
+
+ * Use Async Inference Config when available for endpoint update
+
+### Documentation Changes
+
+ * smdistributed libraries release notes
+
+## v2.123.0 (2022-12-15)
+
+### Features
+
+ * Add support for TF2.9.2 training images
+ * Add SageMaker Experiment
+
+## v2.122.0 (2022-12-14)
+
+### Features
+
+ * Feature Store dataset builder, delete_record, get_record, list_feature_group
+ * Add OSU region to frameworks for DLC
+
+### Bug Fixes and Other Changes
+
+ * the Hyperband support fix for the HPO
+ * unpin packaging version
+ * Remove content type image/jpg from analysis configuration schema
+
+## v2.121.2 (2022-12-12)
+
+### Bug Fixes and Other Changes
+
+ * Update for Tensorflow Serving 2.11 inference DLCs
+ * Revert "fix: type hint of PySparkProcessor __init__"
+ * Skip Bad Transform Test
+
+## v2.121.1 (2022-12-09)
+
+### Bug Fixes and Other Changes
+
+ * Pop out ModelPackageName from pipeline definition
+ * Fix failing jumpstart cache unit tests
+
+## v2.121.0 (2022-12-08)
+
+### Features
+
+ * Algorithms Region Expansion OSU/DXB
+
+### Bug Fixes and Other Changes
+
+ * FrameworkProcessor S3 uploads
+ * Add constraints file for apache-airflow
+
+## v2.120.0 (2022-12-07)
+
+### Features
+
+ * Add Neo image uri config for Pytorch 1.12
+ * Adding support for SageMaker Training Compiler in PyTorch estimator starting 1.12
+ * Update registries with new region account number mappings.
+ * Add DXB region to frameworks by DLC
+
+### Bug Fixes and Other Changes
+
+ * support idempotency for framework and spark processors
+
+## v2.119.0 (2022-12-03)
+
+### Features
+
+ * Add Code Owners file
+ * Added transform with monitoring pipeline step in transformer
+ * Update TF 2.9 and TF 2.10 inference DLCs
+ * make estimator accept json file as modelparallel config
+ * SageMaker Training Compiler does not support p4de instances
+ * Add support for SparkML v3.3
+
+### Bug Fixes and Other Changes
+
+ * Fix bug forcing uploaded tar to be named sourcedir
+ * Update local_requirements.txt PyYAML version
+ * refactoring : using with statement
+ * Allow Py 3.7 for MMS Test Docker env
+ * fix PySparkProcessor __init__ params type
+ * type hint of PySparkProcessor __init__
+ * Return ARM XGB/SKLearn tags if `image_scope` is `inference_graviton`
+ * Update scipy to 1.7.3 to support M1 development envs
+ * Fixing type hints for Spark processor that has instance type/count params in reverse order
+ * Add DeepAR ap-northeast-3 repository.
+ * Fix AsyncInferenceConfig documentation typo
+ * fix ml_inf to ml_inf1 in Neo multi-version support
+ * Fix type annotations
+ * add neo mvp region accounts
+
 ## v2.118.0 (2022-12-01)
 
 ### Features
