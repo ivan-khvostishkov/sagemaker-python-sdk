@@ -1,5 +1,85 @@
 # Changelog
 
+## v2.152.0 (2023-05-04)
+
+### Features
+
+ * add support for lineage visualization using pyvis
+ * Expose Experiment class publicly
+ * PyTorch 1.13 release
+
+### Bug Fixes and Other Changes
+
+ * Change data_type argument to dtype to keep consistent with D…
+ * Skip edge test
+ * make RemoteExecutor context manager non-blocking on pending futures
+ * Add inferentia2 DLC images for djl framework
+ * Fix typo in using_pytorch.rst
+ * Unable to attach estimator to training job when KeepAlivePeriodInSeconds specified
+ * update LMI container image
+ * Update Clarify SHAPConfig baseline to allow JSON structures
+
+### Documentation Changes
+
+ * Fix broken link in DJL SageMaker docs
+ * currency update for the SageMaker data parallelism lib
+ * SM model parallel library v1.15.0 release note
+
+## v2.151.0 (2023-04-27)
+
+### Features
+
+ * Update Transformers 4.26 - TensorFlow 2.11.0 Image URI
+ * Add Extra Parameters to Lambda Function Wrapper
+
+### Bug Fixes and Other Changes
+
+ * Add kms key support for Model registration
+ * Enable inference recommender slow tests
+ * Pass sagemaker session to downstream s3 calls
+ * Add ap-south-1 to no p3 regions
+ * skip test for p2 instance for TF2.12 and above
+
+### Documentation Changes
+
+ * Fix minor misses from the remote function doc release
+
+## v2.150.0 (2023-04-26)
+
+### Features
+
+ * Introduce TensorBoard app class
+
+### Bug Fixes and Other Changes
+
+ * Update data wrangler images
+
+## v2.149.0 (2023-04-25)
+
+### Features
+
+ * Support TF2.12 SageMaker DLC
+
+### Bug Fixes and Other Changes
+
+ * update the doc for Join function
+ * change s3UploadMode of sagemaker clarify processing output for computer vision jobs.
+
+### Documentation Changes
+
+ * Add Remote Function updates
+
+## v2.148.0 (2023-04-20)
+
+### Features
+
+ * [huggingface] Add `torch.distributed` support for Trainium and `torchrun`
+ * Add PyTorch 2.0 to SDK
+
+### Bug Fixes and Other Changes
+
+ * updating batch transform job in monitoring schedule
+
 ## v2.147.0 (2023-04-18)
 
 ### Features
